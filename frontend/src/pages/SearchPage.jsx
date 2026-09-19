@@ -68,6 +68,7 @@ export default function SearchPage() {
   return (
     <section className="browse">
       <div className="browse-intro">
+        <span className="eyebrow">Price tracker</span>
         <h1>Track a product</h1>
         <p>Search INE's store by partial or full product name, then track it. Prices and stock are scraped every 2 hours.</p>
         <form className="search-form" onSubmit={onSubmit} role="search">

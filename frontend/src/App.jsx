@@ -7,14 +7,16 @@ export default function App() {
   return (
     <div className="app">
       <header className="site-header">
-        <Link to="/" className="brand" aria-label="INE Store home">
-          <span className="brand-mark" aria-hidden="true">◧</span> INE Store
-        </Link>
+        <div className="brand-group">
+          <Link to="/" className="brand" aria-label="INE Store Tracker home">
+            <span className="brand-mark" aria-hidden="true">◧</span> INE Store Tracker
+          </Link>
+          <span className="tagline">Everyday goods, honestly priced.</span>
+        </div>
         <nav className="site-nav" aria-label="Tracker">
           <NavLink to="/" end>Search &amp; track</NavLink>
           <NavLink to="/tracked">Tracked products</NavLink>
         </nav>
-        <span className="tagline">Everyday goods, honestly priced.</span>
       </header>
       <main className="site-main">
         <Routes>

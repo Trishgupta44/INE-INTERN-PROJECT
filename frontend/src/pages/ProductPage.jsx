@@ -5,7 +5,6 @@ import { api } from '../api.js';
 import CategoryIcon from '../components/CategoryIcon.jsx';
 import { inr, when, whenFull, ago, stockLabel } from '../format.js';
 
-const REVIEW_KEYS = ['warranty', 'inTheBox', 'countryOfOrigin', 'returns', 'support', 'weightGrams', 'material', 'colour', 'modelYear'];
 const SPEC_LABEL = {
   warranty: 'Warranty',
   inTheBox: 'In the box',
@@ -18,11 +17,17 @@ const SPEC_LABEL = {
   modelYear: 'Model year',
 };
 
+const badgeClass = (type) =>
+  type === 'price_drop' || type === 'back_in_stock' ? 'status-success' : type === 'structure_change' ? 'status-failed' : 'status-retried';
+
+const axisTick = { fontSize: 11, fill: '#767676', fontFamily: 'inherit' };
+const tooltipStyle = { border: '1px solid #111', borderRadius: 0, fontSize: 12, boxShadow: '4px 4px 0 #111' };
+
 export default function ProductPage() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [scraping, setScraping] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [view, setView] = useState('chart');
 
   const load = async () => {
@@ -52,25 +57,19 @@ export default function ProductPage() {
   const specs = product.specs || {};
   const reviews = specs.reviews || [];
   const okCount = logs.filter((l) => l.status === 'success').length;
-  const chartData = history.map((h) => ({ t: new Date(h.scraped_at).getTime(), price: Number(h.price), mrp: h.mrp ? Number(h.mrp) : null, stock: h.stock, label: when(h.scraped_at) }));
+  const chartData = history.map((h) => ({ t: new Date(h.scraped_at).getTime(), price: Number(h.price), mrp: h.mrp ? Number(h.mrp) : null, stock: h.stock }));
+  const busy = queued || run?.running;
 
   const scrapeNow = async () => {
-    setScraping(true);
+    setQueued(true);
     try {
       await api.scrapeNow(product.id);
-      setTimeout(load, 4000);
-      setTimeout(load, 12000);
-      setTimeout(load, 25000);
+      [4000, 12000, 25000, 45000].forEach((ms) => setTimeout(load, ms));
     } catch (e) {
       alert(e.message);
     } finally {
-      setTimeout(() => setScraping(false), 6000);
+      setTimeout(() => setQueued(false), 8000);
     }
-  };
-
-  const setInterval_ = async (hours) => {
-    await api.update(product.id, { scrape_interval_hours: Number(hours) });
-    load();
   };
 
   return (
@@ -90,10 +89,9 @@ export default function ProductPage() {
             {latest ? (
               <>
                 <div className="price-main">
-                  {latest.mrp && Number(latest.mrp) > Number(latest.price) && <span style={{ textDecoration: 'line-through', opacity: 0.55 }}>{inr(latest.mrp)}</span>}
-                  <span className="price-value" style={{ opacity: latest.pending ? 0.45 : 1 }}>{inr(latest.price)}</span>
-                  {latest.badge_pct ? <span style={{ color: '#2f855a', fontWeight: 600 }}>{latest.badge_pct}% off</span> : null}
-                  {latest.pending ? <small className="muted">provisional</small> : null}
+                  <span className="price-value">{inr(latest.price)}</span>
+                  {latest.mrp && Number(latest.mrp) > Number(latest.price) && <span className="price-mrp">{inr(latest.mrp)}</span>}
+                  {latest.badge_pct ? <span className="price-off">{latest.badge_pct}% off</span> : null}
                 </div>
                 <div className="price-facets">
                   <span className={`stock-badge ${latest.in_stock ? 'in-stock' : 'out-stock'}`}>{stockLabel(latest)}</span>
@@ -107,72 +105,79 @@ export default function ProductPage() {
               </>
             ) : (
               <div>
-                <p className="price-status">No price yet</p>
+                <p className="price-status">No reading yet</p>
                 <p className="price-substatus">{logs.length ? `Last attempt ${logs[0].status}: ${logs[0].error || ''}` : 'The first scrape is queued and usually completes within a minute.'}</p>
               </div>
             )}
           </div>
 
-          <div className="inline-form" style={{ marginTop: '1rem' }}>
-            <button type="button" className="btn btn-primary" onClick={scrapeNow} disabled={scraping || run?.running}>
-              {run?.running ? 'Scrape in progress…' : scraping ? 'Queued…' : 'Scrape now'}
+          <div className="controls">
+            <button type="button" className="btn btn-primary" onClick={scrapeNow} disabled={busy}>
+              {busy ? 'Queued' : 'Scrape now'}
             </button>
-            <label className="muted" style={{ fontSize: '.78rem' }}>
-              Every{' '}
-              <select value={product.scrape_interval_hours} onChange={(e) => setInterval_(e.target.value)}>
+            <label className="control">
+              <span className="control-label">Every</span>
+              <select value={product.scrape_interval_hours} onChange={(e) => api.update(product.id, { scrape_interval_hours: Number(e.target.value) }).then(load)} aria-label="Scrape interval">
                 {[1, 2, 3, 4, 6, 8, 12, 24].map((h) => (
                   <option key={h} value={h}>{h} h</option>
                 ))}
               </select>
             </label>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => api.update(product.id, { active: !product.active }).then(load)}>
+            <button type="button" className="btn btn-ghost" onClick={() => api.update(product.id, { active: !product.active }).then(load)}>
               {product.active ? 'Pause' : 'Resume'}
             </button>
+            {run?.running && (
+              <span className="run-pill">
+                <span className="spinner" aria-hidden="true" /> scraping {run.progress?.done ?? 0}/{run.progress?.total ?? 1}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       <div className="stat-row">
-        <div className="stat"><span className="stat-label">Current</span><span className="stat-value">{latest ? inr(latest.price) : '—'}</span><div className="stat-sub">{latest ? stockLabel(latest) : 'no data'}</div></div>
-        <div className="stat"><span className="stat-label">Lowest seen</span><span className="stat-value">{inr(min)}</span><div className="stat-sub">{history.length} readings</div></div>
+        <div className="stat"><span className="stat-label">Current</span><span className="stat-value">{latest ? inr(latest.price) : '—'}</span><div className="stat-sub">{latest ? stockLabel(latest) : 'no data yet'}</div></div>
+        <div className="stat"><span className="stat-label">Lowest seen</span><span className="stat-value">{inr(min)}</span><div className="stat-sub">{history.length} reading{history.length === 1 ? '' : 's'}</div></div>
         <div className="stat"><span className="stat-label">Highest seen</span><span className="stat-value">{inr(max)}</span><div className="stat-sub">since {first ? when(first.scraped_at) : '—'}</div></div>
-        <div className="stat"><span className="stat-label">Scrape success</span><span className="stat-value">{logs.length ? `${Math.round((okCount / logs.length) * 100)}%` : '—'}</span><div className="stat-sub">{okCount} of {logs.length} attempts</div></div>
+        <div className="stat"><span className="stat-label">Scrape success</span><span className="stat-value">{logs.length ? `${Math.round((okCount / logs.length) * 100)}%` : '—'}</span><div className="stat-sub">{okCount} of {logs.length} attempt{logs.length === 1 ? '' : 's'}</div></div>
       </div>
 
       <div className="section-head">
         <h2>Price &amp; stock history</h2>
-        <div className="inline-form">
-          <button type="button" className={`btn btn-sm ${view === 'chart' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('chart')}>Chart</button>
-          <button type="button" className={`btn btn-sm ${view === 'table' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('table')}>Table</button>
+        <div className="segmented" role="tablist" aria-label="History view">
+          <button type="button" role="tab" aria-selected={view === 'chart'} className={`btn btn-sm ${view === 'chart' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('chart')}>Chart</button>
+          <button type="button" role="tab" aria-selected={view === 'table'} className={`btn btn-sm ${view === 'table' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('table')}>Table</button>
         </div>
       </div>
 
-      {history.length === 0 && <div className="grid-empty">No readings yet.</div>}
-      {history.length > 0 && view === 'chart' && (
+      {history.length === 0 && <div className="chart-empty">No readings yet.</div>}
+      {history.length === 1 && view === 'chart' && (
+        <div className="chart-empty">
+          <strong>{inr(latest.price)}</strong>
+          One reading so far, taken {ago(latest.scraped_at)}. The line appears once the next scheduled scrape lands (every {product.scrape_interval_hours} h), or press <em>Scrape now</em>.
+        </div>
+      )}
+      {history.length > 1 && view === 'chart' && (
         <div className="chart-card">
           <div className="chart-legend"><span>Price</span><span className="dashed">MRP</span></div>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ left: 12, right: 24, top: 8, bottom: 8 }}>
               <CartesianGrid stroke="#e4e4e4" vertical={false} />
-              <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(t) => when(new Date(t).toISOString())} tick={{ fontSize: 11, fill: '#767676' }} stroke="#e4e4e4" />
-              <YAxis tickFormatter={(v) => inr(v)} tick={{ fontSize: 11, fill: '#767676' }} stroke="#e4e4e4" width={90} domain={['auto', 'auto']} />
-              <Tooltip
-                contentStyle={{ border: '1px solid #111', borderRadius: 0, fontSize: 12 }}
-                labelFormatter={(t) => whenFull(new Date(t).toISOString())}
-                formatter={(v, name, item) => (name === 'stock' ? [v, 'Stock'] : [inr(v), name === 'price' ? 'Price' : 'MRP'])}
-              />
-              <Line type="stepAfter" dataKey="price" stroke="#111" strokeWidth={2} dot={{ r: 3, fill: '#111' }} isAnimationActive={false} />
+              <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(t) => when(new Date(t).toISOString())} tick={axisTick} stroke="#e4e4e4" minTickGap={40} />
+              <YAxis tickFormatter={(v) => inr(v)} tick={axisTick} stroke="#e4e4e4" width={90} domain={['auto', 'auto']} />
+              <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => whenFull(new Date(t).toISOString())} formatter={(v, name) => [inr(v), name === 'price' ? 'Price' : 'MRP']} />
+              <Line type="stepAfter" dataKey="price" stroke="#111" strokeWidth={2} dot={{ r: 3, fill: '#111', strokeWidth: 0 }} isAnimationActive={false} />
               <Line type="stepAfter" dataKey="mrp" stroke="#767676" strokeDasharray="4 4" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
             </LineChart>
           </ResponsiveContainer>
-          <div className="chart-legend" style={{ paddingTop: '.5rem' }}><span>Stock</span></div>
+          <div className="chart-legend" style={{ paddingTop: '.75rem' }}><span>Units in stock</span></div>
           <ResponsiveContainer width="100%" height={140}>
             <LineChart data={chartData} margin={{ left: 12, right: 24, top: 8, bottom: 8 }}>
               <CartesianGrid stroke="#e4e4e4" vertical={false} />
-              <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(t) => when(new Date(t).toISOString())} tick={{ fontSize: 11, fill: '#767676' }} stroke="#e4e4e4" />
-              <YAxis tick={{ fontSize: 11, fill: '#767676' }} stroke="#e4e4e4" width={90} allowDecimals={false} />
-              <Tooltip contentStyle={{ border: '1px solid #111', borderRadius: 0, fontSize: 12 }} labelFormatter={(t) => whenFull(new Date(t).toISOString())} formatter={(v) => [v, 'Units in stock']} />
-              <Line type="stepAfter" dataKey="stock" stroke="#111" strokeWidth={2} dot={{ r: 3, fill: '#111' }} isAnimationActive={false} />
+              <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(t) => when(new Date(t).toISOString())} tick={axisTick} stroke="#e4e4e4" minTickGap={40} />
+              <YAxis tick={axisTick} stroke="#e4e4e4" width={90} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => whenFull(new Date(t).toISOString())} formatter={(v) => [v, 'Units in stock']} />
+              <Line type="stepAfter" dataKey="stock" stroke="#111" strokeWidth={2} dot={{ r: 3, fill: '#111', strokeWidth: 0 }} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -186,13 +191,13 @@ export default function ProductPage() {
             <tbody>
               {[...history].reverse().map((h) => (
                 <tr key={h.id}>
-                  <td>{whenFull(h.scraped_at)}</td>
-                  <td className="num">{inr(h.price)}{h.pending ? ' *' : ''}</td>
+                  <td className="when">{whenFull(h.scraped_at)}</td>
+                  <td className="num">{inr(h.price)}</td>
                   <td>{h.mrp ? inr(h.mrp) : '—'}</td>
-                  <td>{stockLabel(h)}</td>
+                  <td><span className={`stock-badge ${h.in_stock ? 'in-stock' : 'out-stock'}`}>{stockLabel(h)}</span></td>
                   <td>{h.seller || '—'}</td>
                   <td>{h.rating ?? '—'}</td>
-                  <td className="mono">{h.price_format} / rev {h.layout_revision ?? '—'}</td>
+                  <td className="mono">{h.price_format} · rev {h.layout_revision ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -204,7 +209,7 @@ export default function ProductPage() {
         <h2>Scrape log</h2>
         <small>every attempt, including failures</small>
       </div>
-      {logs.length === 0 && <div className="grid-empty">No attempts yet.</div>}
+      {logs.length === 0 && <div className="chart-empty">No attempts yet.</div>}
       {logs.length > 0 && (
         <div className="table-wrap">
           <table className="data-table">
@@ -214,7 +219,7 @@ export default function ProductPage() {
             <tbody>
               {logs.map((l) => (
                 <tr key={l.id}>
-                  <td>{whenFull(l.started_at)}</td>
+                  <td className="when">{whenFull(l.started_at)}</td>
                   <td><span className={`status-badge status-${l.status}`}>{l.status}</span></td>
                   <td>{l.attempt}</td>
                   <td>{l.duration_ms != null ? `${(l.duration_ms / 1000).toFixed(1)} s` : '—'}</td>
@@ -236,7 +241,7 @@ export default function ProductPage() {
           <ul className="alert-list">
             {alerts.map((a) => (
               <li className="alert" key={a.id}>
-                <span className={`status-badge ${a.type === 'price_drop' || a.type === 'back_in_stock' ? 'status-success' : a.type === 'structure_change' ? 'status-failed' : 'status-retried'}`}>{a.type.replace('_', ' ')}</span>
+                <span className={`status-badge ${badgeClass(a.type)}`}>{a.type.replace('_', ' ')}</span>
                 <span>{a.message}</span>
                 <time>{when(a.created_at)}</time>
               </li>
@@ -248,7 +253,7 @@ export default function ProductPage() {
       <div className="detail-extra">
         <h2>Specifications</h2>
         <dl className="spec-list">
-          {REVIEW_KEYS.filter((k) => specs[k] != null).map((k) => (
+          {Object.keys(SPEC_LABEL).filter((k) => specs[k] != null).map((k) => (
             <div className="spec-row" key={k}>
               <dt>{SPEC_LABEL[k]}</dt>
               <dd>{k === 'weightGrams' ? `${specs[k]} g` : String(specs[k])}</dd>
@@ -273,7 +278,7 @@ export default function ProductPage() {
             </ul>
           </>
         )}
-        <p className="detail-fineprint">Readings marked * were flagged as provisional by the store at scrape time. Tracked at {whenFull(product.created_at)} from store product #{product.store_id}.</p>
+        <p className="detail-fineprint">Tracked since {whenFull(product.created_at)} from store product #{product.store_id}. Prices the store marks provisional are never recorded.</p>
       </div>
     </section>
   );
