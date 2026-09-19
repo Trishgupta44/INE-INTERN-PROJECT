@@ -1,9 +1,10 @@
 const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 async function request(path, options = {}) {
+  // Only send a content-type when there is a body: a bare GET then needs no CORS preflight.
   const res = await fetch(`${BASE}/api${path}`, {
-    headers: { 'content-type': 'application/json', ...(options.headers || {}) },
     ...options,
+    headers: { ...(options.body ? { 'content-type': 'application/json' } : {}), ...(options.headers || {}) },
   });
   if (res.status === 204) return null;
   const body = await res.json().catch(() => ({}));

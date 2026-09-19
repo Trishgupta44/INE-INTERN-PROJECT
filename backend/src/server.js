@@ -9,7 +9,29 @@ import { runStatus } from './scraper/run.js';
 import { closeBrowser } from './scraper/browser.js';
 
 const app = express();
-app.use(cors({ origin: config.frontendOrigin === '*' ? true : config.frontendOrigin.split(',').map((s) => s.trim()) }));
+const allowedOrigins = config.frontendOrigin
+  .split(',')
+  .map((s) => s.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+const allowAll = !allowedOrigins.length || allowedOrigins.includes('*');
+app.use(
+  cors({
+    origin: allowAll
+      ? true
+      : (origin, cb) => {
+          if (!origin) return cb(null, true);
+          const host = (() => {
+            try {
+              return new URL(origin).hostname;
+            } catch {
+              return '';
+            }
+          })();
+          // Configured origins plus any Vercel deployment of this project (preview URLs change per commit).
+          cb(null, allowedOrigins.includes(origin) || host.endsWith('.vercel.app') || host === 'localhost');
+        },
+  })
+);
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
