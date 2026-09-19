@@ -1,0 +1,12 @@
+Software_Engineer_Intern_Assignment.pdf
+node_modules/
+.cache/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+recordings/
+test-results/
+playwright-report/
