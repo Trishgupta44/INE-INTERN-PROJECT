@@ -1,18 +1,14 @@
-# Render Blueprint: New -> Blueprint -> pick this repo. Or create a Web Service manually with the same values.
+# Render Blueprint: New -> Blueprint -> pick this repo. Or create a Web Service manually:
+# runtime Docker, root directory "backend", Dockerfile path "backend/Dockerfile".
 services:
   - type: web
     name: ine-price-tracker-api
-    runtime: node
+    runtime: docker
     plan: free
     rootDir: backend
-    buildCommand: npm ci && npx playwright install --with-deps chromium
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:
-      - key: NODE_VERSION
-        value: 20
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/project/.cache/ms-playwright
       - key: STORE_BASE_URL
         value: https://demo.inelabteamdev.com
       - key: SCRAPE_INTERVAL_HOURS

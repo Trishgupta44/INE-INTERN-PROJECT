@@ -51,7 +51,8 @@ Products can also be scraped on demand from the UI (*Scrape now*).
 # 2. backend
 cd backend
 cp .env.example .env        # fill SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET
-npm install                 # also downloads Chromium for Playwright
+npm install
+npm run setup               # downloads Chromium for Playwright (once)
 npm run dev                 # http://localhost:4000
 # 3. frontend (new terminal)
 cd frontend
@@ -112,8 +113,10 @@ cd backend && npm test      # pure parser tests: all 7 price formats, split carr
 
 1. **Supabase** — new project → SQL editor → paste `supabase/schema.sql` → run. Copy the project URL and the
    `service_role` key (Project settings → API).
-2. **Render** — New → Blueprint → this repo (uses `render.yaml`), or New → Web Service with root `backend`,
-   build `npm ci && npx playwright install --with-deps chromium`, start `npm start`. Set the secret env vars.
+2. **Render** — New → Blueprint → this repo (uses `render.yaml`), or New → Web Service with
+   **Language: Docker**, root directory `backend`, Dockerfile path `backend/Dockerfile`. The image is
+   Microsoft's official Playwright image, so Chromium and its system libraries are already present — the
+   plain Node runtime cannot install them on the free tier. Set the secret env vars.
 3. **Vercel** — import the repo, root directory `frontend`, framework Vite. Set `VITE_API_BASE_URL` to the Render URL.
    Then set `FRONTEND_ORIGIN` on Render to the Vercel URL.
 4. **cron-job.org** — create the two jobs from the schedule table above.
