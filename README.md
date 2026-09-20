@@ -14,7 +14,6 @@ The UI is a visual clone of the store itself.
 - **Live site:** https://frontend-five-silk-96.vercel.app
 - **API:** https://ine-price-tracker-api-dggq.onrender.com/api/health
 - **Design note:** [`DESIGN_NOTES.md`](DESIGN_NOTES.md)
-- **Recording script:** [`docs/RECORDING.md`](docs/RECORDING.md)
 
 > The backend runs on Render's free tier: the first request after ~15 minutes of inactivity takes 30–60 s
 > while the instance wakes up; a keep-warm cron ping keeps that rare.
