@@ -1,4 +1,4 @@
-# INE Store · Price Tracker
+# INE Store Tracker
 
 A small full-stack app that lets you pick products from INE's mock storefront
 (https://demo.inelabteamdev.com) and tracks their **price and stock every 2 hours** by scraping the store.
@@ -9,11 +9,12 @@ The UI is a visual clone of the store itself.
 | `frontend/` | React 18 + Vite + Recharts | Vercel |
 | `backend/` | Node 20 + Express + Playwright (Chromium) | Render (free web service) |
 | database | Supabase (PostgreSQL) — `supabase/schema.sql` | Supabase |
-| schedule | external cron → `POST /api/scrape/run` | cron-job.org |
+| schedule | external cron → `POST /api/scrape/run` | cron-job.org + GitHub Actions |
 
-**Live site:** https://frontend-five-silk-96.vercel.app
-**API:** https://ine-price-tracker-api-dggq.onrender.com/api/health
-**Design note:** [`DESIGN_NOTES.md`](DESIGN_NOTES.md) · **Recording script:** [`docs/RECORDING.md`](docs/RECORDING.md)
+- **Live site:** https://frontend-five-silk-96.vercel.app
+- **API:** https://ine-price-tracker-api-dggq.onrender.com/api/health
+- **Design note:** [`DESIGN_NOTES.md`](DESIGN_NOTES.md)
+- **Recording script:** [`docs/RECORDING.md`](docs/RECORDING.md)
 
 > The backend runs on Render's free tier: the first request after ~15 minutes of inactivity takes 30–60 s
 > while the instance wakes up; a keep-warm cron ping keeps that rare.
