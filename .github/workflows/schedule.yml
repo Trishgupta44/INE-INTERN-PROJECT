@@ -1,0 +1,31 @@
+name: Scheduled scrape
+
+# Second external trigger next to cron-job.org. A free Render instance that is asleep answers the first
+# request with a wake-up page, so this job first waits until /api/health returns our JSON, then posts the run.
+on:
+  schedule:
+    - cron: '7 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      API_URL: ${{ secrets.API_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Wake the backend
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -s --max-time 60 -H 'accept: application/json' "$API_URL/api/health" || true)
+            if echo "$body" | grep -q '"ok":true'; then echo "awake: $body"; exit 0; fi
+            echo "attempt $i: not awake yet"; sleep 15
+          done
+          echo "backend did not wake up"; exit 1
+      - name: Trigger the scrape run
+        run: |
+          code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 60 -X POST -H "x-cron-secret: $CRON_SECRET" "$API_URL/api/scrape/run")
+          cat /tmp/out.json; echo
+          # 202 = started, 409 = a run is already in progress (fine)
+          if [ "$code" != "202" ] && [ "$code" != "409" ]; then echo "unexpected status $code"; exit 1; fi

@@ -108,6 +108,11 @@ processes products sequentially (one Chromium page at a time keeps the free inst
    provisional figure (₹11,230, rendered next to "Updating…") differs from the settled price (₹9,132).
    Correction: the scraper presses the store's own "Refresh price" control (trusted click) up to three
    times and, if the quote never settles, fails the attempt with `provisional_price` — nothing is written.
-9. **Its catalog loader assumed pagination was stable.** Every request is a fresh shuffle, so walking 17
+9. **It assumed a keep-warm ping is enough on a free tier.** After deployment the scheduled runs silently
+   stopped: the instance had gone to sleep, Render answered cron-job.org with its large wake-up page
+   ("output too large"), and the scrape POST never reached the app. Correction: every request that reaches
+   `/api/health` triggers a catch-up run for overdue products, the frontend pings health on load, and a
+   GitHub Actions schedule waits for the backend to wake before posting the run.
+10. **Its catalog loader assumed pagination was stable.** Every request is a fresh shuffle, so walking 17
    pages covered ~65% and four concurrent workers tripped the rate limit. Correction: sequential pages with
    a 300 ms gap, then the missing ids are fetched one by one from `/api/product/:id`, which is deterministic.

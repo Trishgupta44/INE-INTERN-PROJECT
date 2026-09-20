@@ -5,7 +5,7 @@ import { dbReady } from './db.js';
 import { products } from './routes/products.js';
 import { scrape } from './routes/scrape.js';
 import { getCatalog } from './store/catalog.js';
-import { runStatus } from './scraper/run.js';
+import { runStatus, catchUp } from './scraper/run.js';
 import { closeBrowser } from './scraper/browser.js';
 
 const app = express();
@@ -36,6 +36,8 @@ app.use(express.json());
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, db: dbReady, time: new Date().toISOString(), run: runStatus(), uptime: Math.round(process.uptime()) });
+  // Any ping that reaches us proves the instance is awake: use it to start overdue scrapes.
+  catchUp({ log: (m) => console.log(`[run] ${m}`) }).catch((e) => console.error('catch-up failed', e.message));
 });
 app.get('/', (req, res) => res.json({ service: 'INE price tracker backend', docs: '/api/health' }));
 app.use('/api', products);

@@ -45,6 +45,14 @@ The backend never runs an always-on loop (free-tier instances sleep). Two cron-j
 | Scrape | `POST https://<backend>/api/scrape/run` with header `x-cron-secret: <CRON_SECRET>` | every 2 hours | scrapes every tracked product that is due (`last_scraped_at` older than its interval) |
 | Keep-warm | `GET https://<backend>/api/health` | every 10 minutes | keeps the Render instance awake so runs are not cut short |
 
+**Sleep-proofing.** A free Render instance that has gone to sleep answers the next request with its own
+wake-up page, so a cron POST can be swallowed before it reaches the app. Two safeguards:
+
+- *Catch-up:* every `/api/health` hit (keep-warm ping, or anyone opening the site) checks for overdue
+  products and starts a run (`trigger = catch-up`). Still externally driven — there is no timer in the process.
+- *Second trigger:* `.github/workflows/schedule.yml` runs every 2 hours, polls `/api/health` until the backend
+  is awake, then posts the run. It needs two repository secrets: `API_URL` (the Render URL) and `CRON_SECRET`.
+
 `/api/scrape/run` answers `202` immediately and processes products sequentially in the background; overlapping
 runs are refused with `409`. `GET /api/scrape/status` shows the current run and the last 20 runs.
 Products can also be scraped on demand from the UI (*Scrape now*).

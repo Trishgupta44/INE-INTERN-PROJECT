@@ -206,6 +206,27 @@ export async function dueProducts({ all = false } = {}) {
   });
 }
 
+let lastCatchUpCheck = 0;
+
+/**
+ * Free-tier instances sleep, and a cron POST that lands on a sleeping instance is answered by the host's
+ * wake-up page instead of reaching us. So whenever *any* request proves we are awake (health ping, page view),
+ * check whether scrapes are overdue and start a run. Still externally driven: no timer, no always-on loop.
+ */
+export async function catchUp({ log = noop } = {}) {
+  if (!supabase || current || Date.now() - lastCatchUpCheck < 5 * 60_000) return { started: false };
+  lastCatchUpCheck = Date.now();
+  const due = await dueProducts().catch(() => []);
+  const overdue = due.filter((p) => {
+    if (!p.last_scraped_at) return true;
+    const hours = p.scrape_interval_hours || config.defaultIntervalHours;
+    return Date.now() - new Date(p.last_scraped_at).getTime() > hours * 3600_000 + 10 * 60_000;
+  });
+  if (!overdue.length) return { started: false };
+  log(`catch-up: ${overdue.length} product(s) overdue, starting a run`);
+  return runAll({ trigger: 'catch-up', log });
+}
+
 /**
  * Scrape every due product sequentially. Returns immediately with `already running` when a run is active.
  */

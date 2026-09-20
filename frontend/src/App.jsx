@@ -1,9 +1,16 @@
+import { useEffect } from 'react';
 import { NavLink, Route, Routes, Link } from 'react-router-dom';
+import { api } from './api.js';
 import SearchPage from './pages/SearchPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
 
 export default function App() {
+  // Wakes a sleeping free-tier backend as soon as someone opens the site (and lets it catch up on overdue scrapes).
+  useEffect(() => {
+    api.health().catch(() => {});
+  }, []);
+
   return (
     <div className="app">
       <header className="site-header">
